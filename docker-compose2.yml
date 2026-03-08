@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  tgbot:
+    build: .
+    container_name: sheerid-tgbot
+    restart: unless-stopped
+    depends_on:
+      - db  # 确保先启动数据库
+
+    # 环境变量
+    environment:
+      - TZ=Asia/Shanghai
+      - PYTHONUNBUFFERED=1
+      # Telegram Bot 配置 (依然读取你的 .env)
+      - BOT_TOKEN=${BOT_TOKEN}
+      - CHANNEL_USERNAME=${CHANNEL_USERNAME:-pk_oa}
+      - CHANNEL_URL=${CHANNEL_URL:-https://t.me/pk_oa}
+      - ADMIN_USER_ID=${ADMIN_USER_ID}
+      
+      # MySQL配置 (关键修改点)
+      - MYSQL_HOST=db             # 必须填下面的服务名 "db"，不能填 localhost
+      - MYSQL_PORT=3306
+      - MYSQL_USER=root           # 根据你的要求改为 root
+      - MYSQL_PASSWORD=geeksunchi # 根据你的要求改为 geeksunchi
+      - MYSQL_DATABASE=tgbot_verify
+
+    # 日志持久化
+    volumes:
+      - ./logs:/app/logs
+      - ./handlers/verify_commands.py:/app/handlers/verify_commands.py
+
+    # 日志配置
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # 新增的 MySQL 8 服务
+  db:
+    image: mysql:8.0
+    container_name: mysql8_bot_db
+    restart: unless-stopped
+    environment:
+      # 这里的密码对应上面 bot 的配置
+      MYSQL_ROOT_PASSWORD: geeksunchi
+      # 容器启动时会自动创建这个库，省去手动建库的麻烦
+      MYSQL_DATABASE: tgbot_verify
+      TZ: Asia/Shanghai
+    volumes:
+      # 数据库文件持久化到当前目录下的 mysql_data 文件夹
+      - ./mysql_data:/var/lib/mysql
+    # 启动命令：设置字符集为 utf8mb4，防止中文乱码；使用旧版密码验证插件以兼容旧版 Python 库
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --default-authentication-plugin=mysql_native_password
